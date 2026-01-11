@@ -96,9 +96,9 @@ Deceptive security report displayed after location data collection to minimize t
 
 ---
 
-## ✨ Features
+## Features
 
-### 🎭 User Interface (Target Side)
+### User Interface (Target Side)
 
 - **Social Engineering Lure:** Disguised as "CloudShield Security Suite" integrity audit
 - **Dual Tracking Methods:**
@@ -107,7 +107,7 @@ Deceptive security report displayed after location data collection to minimize t
 - **Deception Mechanics:** Fake security report display to minimize target suspicion
 - **Progressive Scanning UI:** Realistic scanning animation for authenticity
 
-### 🛡️ Admin Dashboard (C2 Portal)
+### Admin Dashboard (C2 Portal)
 
 - **JWT Authentication:** Secure token-based access control
 - **Real-time Telemetry:** Live tracking data with timestamps and location details
@@ -116,7 +116,7 @@ Deceptive security report displayed after location data collection to minimize t
 - **Dark Mode Forensic UI:** Professional command center aesthetic
 - **Comprehensive Logs:** Method used, accuracy, IP address, city/country data
 
-### 🔐 Security Features
+### Security Features
 
 - JWT token-based authentication with 2-hour expiration
 - Secure API endpoints with Bearer token validation
@@ -126,7 +126,7 @@ Deceptive security report displayed after location data collection to minimize t
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 The framework implements a **Fail-Soft Hybrid Architecture**, ensuring location data is captured regardless of target device configuration or privacy settings.
 
@@ -203,7 +203,7 @@ The framework implements a **Fail-Soft Hybrid Architecture**, ensuring location 
 
 ---
 
-## 🚀 Installation & Setup
+## Installation & Setup
 
 ### Prerequisites
 
@@ -573,7 +573,8 @@ This project is for **educational purposes only**. No license is granted for com
 
 **Semester 8 Student - Chandigarh University**  
 Course: Ethical Hacking & Cyber Forensics  
-Academic Year: 2025-2026
+Academic Year: 2026
+_*NOTE: I haven't implemented port forwarding in code because I don't want anyone to misuse this `:)`*_
 
 ---
 
