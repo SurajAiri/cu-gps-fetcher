@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Forensic Dashboard | C2 Command</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        body { font-family: 'JetBrains+Mono', monospace; background: #050505; color: #00ff41; }
+        #map { height: 500px; width: 100%; border: 1px solid #1a1a1a; filter: invert(100%) hue-rotate(180deg) brightness(0.8); }
+        .terminal-header { border-bottom: 2px solid #00ff41; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto">
+        <header class="terminal-header pb-4 mb-8 flex justify-between items-end">
+            <div>
+                <h1 class="text-2xl font-bold">[ FORENSIC_ASSET_MONITOR_V2 ]</h1>
+                <p class="text-xs text-gray-500">Connected to local SQLite database: forensics.db</p>
+            </div>
+            <div class="text-right text-xs">
+                <div>SYSTEM STATUS: ACTIVE</div>
+                <div id="lastUpdate">LAST UPDATE: JUST NOW</div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <!-- Intercept Table -->
+            <div class="xl:col-span-2">
+                <div class="bg-zinc-900 border border-gray-800 rounded-lg overflow-hidden">
+                    <div class="p-4 bg-black border-b border-gray-800 flex justify-between items-center">
+                        <span class="text-xs font-bold">INTERCEPT_LOGS</span>
+                        <button onclick="fetchLogs()" class="text-[10px] bg-green-900/30 px-2 py-1 rounded border border-green-500 hover:bg-green-500 hover:text-black">MANUAL_REFRESH</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-[11px]">
+                            <thead class="bg-zinc-800 text-gray-400 uppercase">
+                                <tr>
+                                    <th class="p-3">Timestamp</th>
+                                    <th class="p-3">IP Address</th>
+                                    <th class="p-3">Method</th>
+                                    <th class="p-3">City/Country</th>
+                                    <th class="p-3">Coordinates</th>
+                                    <th class="p-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visualizer -->
+            <div class="xl:col-span-1">
+                <div id="map" class="rounded-lg"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000";
+        let map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let markers = [];
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch(`${API_BASE}/get-all-targets`);
+                const data = await res.json();
+                const table = document.getElementById('logBody');
+                table.innerHTML = "";
+                
+                markers.forEach(m => m.remove());
+                markers = [];
+
+                data.forEach((target) => {
+                    const row = `
+                        <tr class="border-b border-gray-800 hover:bg-green-500/5 transition-colors">
+                            <td class="p-3 text-gray-500">${target.timestamp}</td>
+                            <td class="p-3 text-blue-400 font-bold">${target.ip}</td>
+                            <td class="p-3">${target.method}</td>
+                            <td class="p-3">${target.city}, ${target.country}</td>
+                            <td class="p-3 text-green-500">${target.latitude.toFixed(4)}, ${target.longitude.toFixed(4)}</td>
+                            <td class="p-3">
+                                <button onclick="focusMap(${target.latitude}, ${target.longitude})" class="bg-blue-900/20 text-blue-400 px-2 py-1 border border-blue-900 rounded">LOCATE</button>
+                            </td>
+                        </tr>
+                    `;
+                    table.innerHTML += row;
+
+                    const m = L.marker([target.latitude, target.longitude]).addTo(map)
+                        .bindPopup(`<b>IP: ${target.ip}</b><br>Method: ${target.method}<br>${target.timestamp}`);
+                    markers.push(m);
+                });
+                
+                document.getElementById('lastUpdate').innerText = `LAST UPDATE: ${new Date().toLocaleTimeString()}`;
+            } catch (e) { console.error("Failed to connect to backend"); }
+        }
+
+        function focusMap(lat, lon) {
+            map.setView([lat, lon], 14);
+        }
+
+        // Initial load and polling
+        fetchLogs();
+        setInterval(fetchLogs, 5000);
+    </script>
+</body>
+</html>
