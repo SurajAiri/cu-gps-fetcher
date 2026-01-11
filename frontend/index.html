@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Location Tracking System | Cyber Forensics</title>
+    <!-- Tailwind CSS for modern layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet JS for mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+        
+        body {
+            font-family: 'JetBrains+Mono', monospace;
+            background-color: #0a0a0c;
+            color: #00ff41; /* Classic Terminal Green */
+        }
+
+        #map {
+            height: 450px;
+            width: 100%;
+            border: 1px solid #1a1a1a;
+            filter: grayscale(100%) invert(100%) contrast(90%); /* Dark mode map effect */
+        }
+
+        .terminal-box {
+            background: #111;
+            border-left: 4px solid #00ff41;
+            box-shadow: 0 4px 15px rgba(0, 255, 65, 0.1);
+        }
+
+        .loader {
+            border: 2px solid #1a1a1a;
+            border-top: 2px solid #00ff41;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(3600deg); }
+        }
+
+        /* Scanline effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto z-10 relative">
+        <!-- Header -->
+        <header class="mb-8 border-b border-gray-800 pb-4">
+            <h1 class="text-3xl font-bold tracking-tighter">[ HYBRID_LOCATION_TRACKER_V1.0 ]</h1>
+            <p class="text-sm text-gray-500 mt-1">Ethical Hacking & Cyber Forensics Demonstration Tool</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Controls and Stats -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="terminal-box p-6 rounded-r-lg">
+                    <h2 class="text-xs uppercase tracking-widest text-gray-500 mb-4">Operations Center</h2>
+                    <button id="trackBtn" class="w-full bg-green-900/30 border border-green-500 text-green-500 py-3 px-4 rounded hover:bg-green-500 hover:text-black transition-all font-bold">
+                        INITIATE TARGET TRACKING
+                    </button>
+                    
+                    <div id="statusArea" class="mt-4 text-xs space-y-2 opacity-70">
+                        <div>> SYSTEM_READY</div>
+                        <div id="statusLog"></div>
+                    </div>
+                </div>
+
+                <div class="terminal-box p-6 rounded-r-lg bg-black/40">
+                    <h2 class="text-xs uppercase tracking-widest text-gray-500 mb-4">Forensic Metadata</h2>
+                    <div id="metadata" class="space-y-3 text-sm">
+                        <div class="flex justify-between border-b border-gray-800 pb-1">
+                            <span>LATITUDE</span>
+                            <span id="lat">---</span>
+                        </div>
+                        <div class="flex justify-between border-b border-gray-800 pb-1">
+                            <span>LONGITUDE</span>
+                            <span id="lon">---</span>
+                        </div>
+                        <div class="flex justify-between border-b border-gray-800 pb-1">
+                            <span>METHOD</span>
+                            <span id="method" class="text-blue-400">---</span>
+                        </div>
+                        <div class="flex justify-between border-b border-gray-800 pb-1">
+                            <span>ACCURACY</span>
+                            <span id="accuracy">---</span>
+                        </div>
+                        <div class="flex justify-between border-b border-gray-800 pb-1">
+                            <span>CONFIDENCE</span>
+                            <span id="confidence">---</span>
+                        </div>
+                        <div class="mt-4 p-2 bg-red-900/10 border border-red-900/30 text-[10px] text-red-400">
+                            NOTE: IP Geolocation accuracy depends on ISP routing and may deviate significantly.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Area -->
+            <div class="lg:col-span-2">
+                <div class="rounded-lg overflow-hidden border border-gray-800 relative shadow-2xl">
+                    <div id="map"></div>
+                    <!-- Loading Overlay -->
+                    <div id="mapOverlay" class="absolute inset-0 bg-black/80 z-[1000] flex items-center justify-center hidden">
+                        <div class="text-center">
+                            <div class="loader mx-auto mb-2"></div>
+                            <span class="text-xs uppercase tracking-widest">Awaiting Fix...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-[10px] text-gray-600 uppercase flex justify-between">
+                    <span>Active Probe: Browser_v8.1</span>
+                    <span>Passive Probe: Backend_FastAPI</span>
+                    <span>Map Source: OpenStreetMap (Standard)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forensic Context Footer -->
+        <footer class="mt-12 p-6 border-t border-gray-800">
+            <h3 class="text-sm font-bold mb-2">FORENSIC CASE NOTES:</h3>
+            <p class="text-xs text-gray-500 leading-relaxed max-w-4xl">
+                Cyber investigators utilize a "Multi-Point Geolocation" strategy. When high-precision sensors (GPS/GLONASS) are unavailable via browser APIs, investigators shift to 
+                <span class="text-green-700">Passive Network Inference</span>. This process maps a target's IP address against BGP routing tables and public registries (ARIN/RIPE). 
+                While less accurate than GPS, it provides critical geographic context (City/Country) without requiring local hardware permissions. 
+                In a real-world forensic environment, this is often supplemented with Wi-Fi BSSID triangulation (WAR DRIVING) for higher accuracy.
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        const trackBtn = document.getElementById('trackBtn');
+        const mapOverlay = document.getElementById('mapOverlay');
+        const statusLog = document.getElementById('statusLog');
+        
+        let map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let marker;
+
+        function log(msg, color = "inherit") {
+            const div = document.createElement('div');
+            div.textContent = `> ${msg}`;
+            div.style.color = color;
+            statusLog.appendChild(div);
+        }
+
+        async function updateUI(data) {
+            document.getElementById('lat').innerText = data.latitude.toFixed(4);
+            document.getElementById('lon').innerText = data.longitude.toFixed(4);
+            document.getElementById('method').innerText = data.method;
+            document.getElementById('accuracy').innerText = data.accuracy_note || '± 10-50m';
+            document.getElementById('confidence').innerText = data.forensic_confidence || 'High';
+
+            const coords = [data.latitude, data.longitude];
+            map.setView(coords, 13);
+
+            if (marker) marker.remove();
+            marker = L.marker(coords).addTo(map)
+                .bindPopup(`<b>${data.method}</b><br>Lat: ${data.latitude}<br>Lon: ${data.longitude}`)
+                .openPopup();
+            
+            mapOverlay.classList.add('hidden');
+        }
+
+        async function fetchNetworkLocation() {
+            log("GPS FAILED OR DENIED. ATTEMPTING NETWORK INFERENCE...", "#ff9900");
+            try {
+                // Adjust this URL to your local FastAPI server if running separately
+                const response = await fetch('http://127.0.0.1:8000/track');
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                log(`INFERENCE SUCCESSFUL: ${data.city}, ${data.country}`, "#00ff41");
+                updateUI(data);
+            } catch (err) {
+                log("FORENSIC_FAILURE: NO PATH TO TARGET.", "#ff3333");
+                mapOverlay.classList.add('hidden');
+            }
+        }
+
+        trackBtn.addEventListener('click', () => {
+            mapOverlay.classList.remove('hidden');
+            statusLog.innerHTML = "";
+            log("PROBING GPS INTERFACE...");
+
+            if (!navigator.geolocation) {
+                log("HARDWARE_ERROR: GPS NOT SUPPORTED.");
+                fetchNetworkLocation();
+                return;
+            }
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    log("GPS SIGNAL LOCKED.", "#00ff41");
+                    const data = {
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        method: "GPS-based (Active)",
+                        accuracy_note: `± ${pos.coords.accuracy.toFixed(1)}m (High Accuracy)`,
+                        forensic_confidence: "Maximum"
+                    };
+                    updateUI(data);
+                },
+                (err) => {
+                    if(err.code === 1) log("PERMISSION_DENIED: USER REJECTED PROBE.", "#ff3333");
+                    else log("SIGNAL_TIMEOUT: GPS SEARCH FAILED.", "#ff3333");
+                    fetchNetworkLocation();
+                },
+                options
+            );
+        });
+    </script>
+</body>
+</html>
