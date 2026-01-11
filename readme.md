@@ -32,6 +32,7 @@ This system was developed as a final-year assignment for the "Ethical Hacking & 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Screenshots](#screenshots)
 - [Features](#features)
 - [System Architecture](#system-architecture)
 - [Technical Stack](#technical-stack)
@@ -54,6 +55,44 @@ The **GPS Fetcher** is a hybrid location tracking system that demonstrates advan
 - **Hybrid Tracking:** GPS + IP-based geolocation with automatic failover
 - **Secure Command & Control:** JWT-authenticated administrative dashboard
 - **Forensic Data Collection:** Persistent logging with SQLite for evidence preservation
+
+---
+
+## 📸 Screenshots
+
+### Admin Interface
+
+#### Admin Login Portal
+
+Secure JWT-based authentication gateway for accessing the command & control center.
+
+![Admin Login](screenshots/admin-login.jpg)
+
+#### Admin Dashboard (C2 Home)
+
+Real-time forensic telemetry feed showing all tracked targets with comprehensive metadata including timestamps, tracking methods, accuracy levels, IP addresses, and geographic locations.
+
+![Admin Dashboard](screenshots/admin-hq.jpg)
+
+#### Full-Screen Map View
+
+Interactive map visualization with selected targets displayed on inverted OpenStreetMap tiles. Features asset controller for toggling victims and auto-fit bounds for tactical focus.
+
+![Admin Map View](screenshots/admin-map.jpg)
+
+### User/Target Interface
+
+#### Initial User Landing Page
+
+Social engineering lure disguised as "CloudShield Security Suite" - a legitimate-looking security audit interface designed to gain user trust.
+
+![User Landing Page](screenshots/user-page.jpg)
+
+#### Post-Exfiltration Report
+
+Deceptive security report displayed after location data collection to minimize target suspicion and maintain the illusion of a genuine security check.
+
+![User Security Report](screenshots/user-report.jpg)
 
 ---
 
