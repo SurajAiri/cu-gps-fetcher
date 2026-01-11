@@ -211,12 +211,10 @@
                 if (res.status === 401) return logout();
                 const data = await res.json();
                 
-                // On first fetch, select all by default
                 if (allTargets.length === 0 && data.length > 0) {
                     data.forEach(t => selectedTargetIds.add(t.id));
                 }
                 
-                // Add any new targets to selection by default
                 data.forEach(t => {
                     if (!allTargets.find(old => old.id === t.id)) {
                         selectedTargetIds.add(t.id);
@@ -256,6 +254,16 @@
                 const pin = L.marker([t.latitude, t.longitude]).addTo(mainMap);
                 mainMarkers.push(pin);
             });
+
+            // Automatically scale Headquarters map to show all current assets
+            if (mainMarkers.length > 0) {
+                if (mainMarkers.length === 1) {
+                    mainMap.setView(mainMarkers[0].getLatLng(), 16, { animate: true });
+                } else {
+                    const group = new L.featureGroup(mainMarkers);
+                    mainMap.fitBounds(group.getBounds(), { padding: [30, 30], maxZoom: 16, animate: true });
+                }
+            }
         }
 
         // --- War Room Exclusive Functions ---
@@ -264,14 +272,12 @@
             const listContainer = document.getElementById('asset-list');
             listContainer.innerHTML = "";
             
-            // Clear all current war room markers
             Object.values(warRoomMarkers).forEach(m => m.remove());
             warRoomMarkers = {};
 
             allTargets.forEach(t => {
                 const isSelected = selectedTargetIds.has(t.id);
                 
-                // 1. Update Sidebar List
                 const item = document.createElement('div');
                 item.className = "asset-toggle";
                 item.innerHTML = `
@@ -280,7 +286,6 @@
                 `;
                 listContainer.appendChild(item);
 
-                // 2. Add Marker if Selected
                 if (isSelected) {
                     const m = L.marker([t.latitude, t.longitude]).addTo(fullMap)
                         .bindPopup(`<b>${t.ip}</b><br>${t.method}<br>${t.city}`);
@@ -312,8 +317,19 @@
             const activeMarkers = Object.values(warRoomMarkers);
             if (activeMarkers.length === 0) return;
 
-            const group = new L.featureGroup(activeMarkers);
-            fullMap.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 10 });
+            // Handle single target zoom differently for better forensic detail
+            if (activeMarkers.length === 1) {
+                const latLng = activeMarkers[0].getLatLng();
+                fullMap.setView(latLng, 16, { animate: true });
+            } else {
+                const group = new L.featureGroup(activeMarkers);
+                // Adjust padding to account for the UI overlays and remove restrictive maxZoom
+                fullMap.fitBounds(group.getBounds(), { 
+                    padding: [80, 80], 
+                    maxZoom: 16,
+                    animate: true 
+                });
+            }
         }
 
         function updateMapStats() {
@@ -322,12 +338,13 @@
             stats.innerHTML = `
                 <div>ACTIVE_ASSETS: ${selectedTargetIds.size}</div>
                 <div>GPS_ACCURACY: ${gpsCount} SENSORS</div>
-                <div>BOUNDS: CALCULATED_AUTO</div>
+                <div>AUTO_FIT: CALIBRATED</div>
             `;
         }
 
         function focusMainMap(lat, lon) {
-            mainMap.setView([lat, lon], 12);
+            // Apply the same tactical zoom scale (level 16) for individual HQ previews
+            mainMap.setView([lat, lon], 16, { animate: true });
         }
     </script>
 </body>
